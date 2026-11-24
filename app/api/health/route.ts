@@ -6,10 +6,10 @@ export async function GET() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.json(
-      { ok: false, error: "Missing Supabase env vars in NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY" },
-      { status: 500 }
+    console.error(
+      "[health] Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY"
     );
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
 
   // Supabase provides a health endpoint for Auth (GoTrue) that works without any tables.
@@ -25,20 +25,21 @@ export async function GET() {
       cache: "no-store",
     });
 
-    const data = await res.json().catch(() => ({}));
-
     if (!res.ok) {
-      return NextResponse.json(
-        { ok: false, status: res.status, statusText: res.statusText, data },
-        { status: 500 }
-      );
+      const body = await res.text().catch(() => "");
+      console.error("[health] Supabase auth health check failed", {
+        status: res.status,
+        statusText: res.statusText,
+        body: body.slice(0, 500),
+      });
+      return NextResponse.json({ ok: false }, { status: 503 });
     }
 
+    const data = await res.json().catch(() => ({}));
+
     return NextResponse.json({ ok: true, supabaseAuthHealth: data });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: err?.message ?? "Unknown error" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("[health] Supabase auth health request errored", err);
+    return NextResponse.json({ ok: false }, { status: 503 });
   }
 }
